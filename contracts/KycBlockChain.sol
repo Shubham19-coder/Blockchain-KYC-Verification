@@ -1,148 +1,104 @@
-pragma solidity >=0.4.21 <0.7.0;
+//SPDX-License-Identifier: UNLICENSED
+pragma solidity >=0.5.0 < 0.9.0;
 
-interface KYC_Functions{
-    enum Status {Accepted, Rejected, Pending}
-    // Checks if the current address is an Organisation(Bank) or not 
-    function isOrg() external view returns(bool);
-    // Checks if the current address is an Customer or not 
-    function isCus() external view returns(bool);
-    // A function to register as a new customer to get your KYC checked by a bank
-    function newCustomer(string calldata _name, string calldata _hash, address _bank) external payable returns(bool);
-    // A function that allows you to be a bank and audit KYC data of customers
-    function newOrganisation(string calldata _name) external payable returns(bool);
-    // A function which is only visible to the bankers so they can verify the data
-    function viewCustomerData(address _address) external view returns(string memory);
-    // Customers also can change the their data if the KYC request gets rejected
-    function modifyCustomerData(string calldata _name,string calldata _hash, address _bank) 
-    external payable returns(bool);
-    // Checks the status of a customers KYC Request (Approved or Rejected or Pending)
-    function checkStatus() external returns(Status);
-    // Function that can change the status of a request (Only for banks)
-    function changeStatusToAccepted(address _custaddress) external payable;
-    // Function that can change the status of a request (Only for banks)
-    function changeStatusToRejected(address _custaddress) external payable;
-    // A function that enables the bank to lookup at all the KYC requests pointed at it
-    function viewRequests() external view returns(address[] memory);
-    // A function that returns the name of a customer
-    function viewName(address _address) external view returns(string memory);
+contract IdentityManagement
+{
 
-}
-
-contract KycBlockChain is KYC_Functions{
-
-    address[] public Banks;
-    address[] public Requests;
-    uint public bankslength=0;
-
-    enum Entity { Customer, Organisation } 
+    address ContractOwner;
     
-
-    struct Customer{
-        string c_name;
-        string data_hash;
-        address bank_address;
-        bool exists;
-        Entity entity;
+    constructor() {
+        ContractOwner = msg.sender;
     }
 
-    struct Organisation{
-        string b_name;
-        bool exists;
-        Entity entity;
-        mapping(address => Status) requests;
-        address[] allrequests;
+    struct UserInfo{
+		string FullName;
+		string EmailID;
+		uint MobileNo;
+    }
+    
+    struct UserDL{
+		string DL_No;
+		string DL_Name;
+		string DL_DOB;
+		bytes32 DL_Hash;
+		string DL_Address;
     }
 
-    mapping(address => Customer) allCustomers;
-    mapping(address => Organisation) allOrganisations;
-
-    function isOrg() public view returns(bool){
-        if(allOrganisations[msg.sender].exists){
-            return true;
-        }
-        return false;
+    struct DLRequest{
+		string RequestedBy;
+		uint DL_No;
+		uint DL_Name;
+		uint DL_DOB;
+		uint DL_Hash;
+		uint DL_Address;
+		uint DL_OverAll_Status;
     }
 
-    function isCus() public view returns(bool){
-        if(allCustomers[msg.sender].exists){
-            return true;
-        }
-        return false;
-    } 
+    /*
+            ApprovalStatus
+        -------------
+        0 --  default status
+        1 --  Requested
+        2 --  Approved
+        3 --  Rejected
+    */
 
-    function newCustomer(string memory _name, string memory _hash, address _bank) public payable returns(bool){
-        require(!isCus(),"Customer Already Exists!");
-        require(allOrganisations[_bank].exists,"No such Bank!");
-        allCustomers[msg.sender].c_name = _name;
-        allCustomers[msg.sender].data_hash = _hash;
-        allCustomers[msg.sender].bank_address = _bank;
-        // allCustomers[msg.sender].access[msg.sender] = true;
-        allCustomers[msg.sender].exists = true;
-        allCustomers[msg.sender].entity = Entity.Customer;
-        notifyBank(_bank);
-        return true;
-
+    mapping(address => UserInfo[]) UserMap;
+	mapping(address => UserDL[]) UserDLMap;
+	mapping(address => DLRequest[]) DLRequestMap;
+	
+    function AddUser(address UserAddress,string memory FullName,string memory EmailID,uint MobileNo) public 
+    {
+        UserMap[UserAddress].push(UserInfo(FullName,EmailID,MobileNo));
     }
 
-    function newOrganisation(string memory _name) public payable returns(bool){
-        require(!isOrg(),"Organisation already exists with the same address!");
-        allOrganisations[msg.sender].b_name = _name;
-        allOrganisations[msg.sender].exists = true;
-        allOrganisations[msg.sender].entity = Entity.Organisation;
-        Banks.push(msg.sender);
-        bankslength++;
-        return true;
+    function AddUserDL(address UserAddress,string memory DL_No, string memory DL_Name, string memory DL_DOB, bytes32 DL_Hash, string memory DL_Address) public
+    {
+        UserDLMap[UserAddress].push(UserDL(DL_No, DL_Name, DL_DOB, DL_Hash, DL_Address));
     }
 
-    function viewCustomerData(address _address) public view returns(string memory){
-        require(isOrg(),"Access Denied");
-        if(allCustomers[_address].exists){
-            return allCustomers[_address].data_hash;
-        }
-        return "No such Customer in the database";
+    function AddDLRequest(address UserAddress,string memory RequestedBy, uint DL_No, uint DL_Name, uint DL_DOB, uint DL_Hash, uint DL_Address, uint DL_OverAll_Status) public
+    {
+        DLRequestMap[UserAddress].push(DLRequest(RequestedBy, DL_No, DL_Name, DL_DOB, DL_Hash, DL_Address, DL_OverAll_Status));
     }
 
-    function modifyCustomerData(string memory _name,string memory _hash, address _bank) public payable returns(bool){
-        require(isCus(),"You are not a customer");
-        allCustomers[msg.sender].c_name = _name;
-        allCustomers[msg.sender].data_hash = _hash;
-        allCustomers[msg.sender].bank_address = _bank;
-        return true;
+    function ViewDLRequestLength(address UserAddress)  view public returns(uint){
+        return DLRequestMap[UserAddress].length;
     }
 
-    function notifyBank(address _bankaddress) internal {
-        allOrganisations[_bankaddress].requests[msg.sender] = Status.Pending;
-        allOrganisations[_bankaddress].allrequests.push(msg.sender);
+    function ViewDLRequestHeader(address UserAddress, uint RequestIndex) view public returns(string memory RequestedBy, uint DL_OverAll_Status)
+    {
+        DLRequest storage ThisDLRequest=DLRequestMap[UserAddress][RequestIndex];
+        return (ThisDLRequest.RequestedBy, ThisDLRequest.DL_OverAll_Status);
+    }
+	
+    function ViewDLRequestDetail(address UserAddress, uint RequestIndex) view public returns(string memory RequestedBy, uint DL_No, uint DL_Name, uint DL_DOB, uint DL_Hash, uint DL_Address, uint DL_OverAll_Status)
+    {
+        DLRequest storage ThisDLRequest=DLRequestMap[UserAddress][RequestIndex];
+        return (ThisDLRequest.RequestedBy, ThisDLRequest.DL_No, ThisDLRequest.DL_Name, ThisDLRequest.DL_DOB, ThisDLRequest.DL_Hash, ThisDLRequest.DL_Address, ThisDLRequest.DL_OverAll_Status);
     }
 
-    function checkStatus() public returns(Status) {
-        require(isCus(),"You are not a customer");
-        address _presbank = allCustomers[msg.sender].bank_address;
-        return allOrganisations[_presbank].requests[msg.sender];
+    function UpdateRequestStatus(address UserAddress, uint RequestIndex, uint DL_No, uint DL_Name, uint DL_DOB, uint DL_Hash, uint DL_Address, uint DL_OverAll_Status) public
+    {
+        DLRequestMap[UserAddress][RequestIndex].DL_No=DL_No;
+		DLRequestMap[UserAddress][RequestIndex].DL_Name=DL_Name;
+		DLRequestMap[UserAddress][RequestIndex].DL_DOB=DL_DOB;
+		DLRequestMap[UserAddress][RequestIndex].DL_Hash=DL_Hash;
+		DLRequestMap[UserAddress][RequestIndex].DL_Address=DL_Address;
+		DLRequestMap[UserAddress][RequestIndex].DL_OverAll_Status=DL_OverAll_Status;
     }
 
-    function changeStatusToAccepted(address _custaddress) public payable{
-        require(isOrg(),"You are not permitted to use this function");
-        address _bank = allCustomers[_custaddress].bank_address;
-        require(_bank == msg.sender,"You dont have access to verify this data");
-        allOrganisations[msg.sender].requests[_custaddress] = Status.Accepted;
+    function viewUser(address UserAddress, uint UserIndex) view public returns(string memory FullName,string memory EmailID,uint MobileNo)
+    {
+        UserInfo storage ThisUser=UserMap[UserAddress][UserIndex];
+        return (ThisUser.FullName, ThisUser.EmailID, ThisUser.MobileNo);
     }
 
-    function changeStatusToRejected(address _custaddress) public payable{
-        require(isOrg(),"You are not permitted to use this function");
-        address _bank = allCustomers[_custaddress].bank_address;
-        require(_bank == msg.sender,"You dont have access to verify this data");
-        allOrganisations[msg.sender].requests[_custaddress] = Status.Rejected;
+    function viewUserDL(address UserAddress, uint RequestIndex) view public returns(uint DL_No_S, string memory DL_No_V, uint DL_Name_S, string memory DL_Name_V, uint DL_DOB_S, string memory DL_DOB_V, uint DL_Hash_S, bytes32 DL_Hash_V, uint DL_Address_S, string memory DL_Address_V) 
+    {
+        UserDL storage ThisUserDL=UserDLMap[UserAddress][0];
+		DLRequest storage ThisDLRequest=DLRequestMap[UserAddress][RequestIndex];
+        return (ThisDLRequest.DL_No, ThisUserDL.DL_No, ThisDLRequest.DL_Name, ThisUserDL.DL_Name, ThisDLRequest.DL_DOB, ThisUserDL.DL_DOB, ThisDLRequest.DL_Hash, ThisUserDL.DL_Hash, ThisDLRequest.DL_Address, ThisUserDL.DL_Address);
     }
-
-    function viewRequests() public view returns(address[] memory){
-        require(isOrg(),"You are not Permitted");
-        return allOrganisations[msg.sender].allrequests;
-    }
-
-    function viewName(address _address) public view returns(string memory){
-        require(isOrg(),"Not an Organisation");
-        return allCustomers[_address].c_name;
-    } 
 
 }
