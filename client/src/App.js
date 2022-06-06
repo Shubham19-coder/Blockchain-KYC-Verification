@@ -33,7 +33,6 @@ const GetAllBankRequests = (props) => {
     </div>
   );
 };
-//------tab navigation starts here--------
 const hideAll = () => {
   document.getElementsByClassName("new-customer")[0].style.display = "none";
   document.getElementsByClassName("existing-customer")[0].style.display =
@@ -68,9 +67,6 @@ const show = (target) => {
     document.getElementsByClassName("new-bank")[0].style.display = "block";
   }
 };
-//------tab navigation ends here--------
-
-//setting state values
 class App extends Component {
   state = {
     web3: null,
@@ -109,9 +105,6 @@ class App extends Component {
         KycBlockChain.abi,
         deployedNetwork && deployedNetwork.address
       );
-
-      // Set web3, accounts, and contract to the state, and then proceed with an
-      // example of interacting with the contract's methods.
       this.setState({
         web3,
         account: accounts[0],
@@ -122,7 +115,6 @@ class App extends Component {
       this.numbanks();
       this.onAccountChanged();
     } catch (error) {
-      // Catch any errors for any of the above operations.
       alert(
         `Failed to load web3, accounts, or contract. Check console for details.`
       );
